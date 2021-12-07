@@ -1,0 +1,244 @@
+---
+title: "Final Project Wine Summary Statistics"
+author: "Jessie Pao"
+subtitle:
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+---
+
+```{r setup, include=FALSE}
+
+# Please leave this code chunk as is. It makes some slight formatting changes to alter the output to be more aesthetically pleasing. 
+
+library(knitr)
+
+# Change the number in set seed to your own favorite number
+set.seed(1818)
+options(width=70)
+options(scipen=99)
+
+
+# this sets text outputted in code chunks to small
+opts_chunk$set(tidy.opts=list(width.wrap=50),tidy=TRUE, size = "vsmall")  
+opts_chunk$set(message = FALSE,                                          
+               warning = FALSE,
+               # "caching" stores objects in code chunks and only rewrites if you change things
+               cache = FALSE,                               
+               # automatically downloads dependency files
+               autodep = TRUE,
+               # 
+               cache.comments = FALSE,
+               # 
+               collapse = TRUE,
+               # change fig.width and fig.height to change the code height and width by default
+               fig.width = 5.5,  
+               fig.height = 4.5,
+               fig.align='center')
+
+
+```
+
+```{r setup-2}
+
+# Always print this out before your assignment
+sessionInfo()
+getwd()
+
+```
+
+
+<!-- ### start answering your problem set here -->
+<!-- You may export your homework in either html or pdf, with the former usually being easier. 
+     To export or compile your Rmd file: click above on 'Knit' then 'Knit to HTML' -->
+<!-- Be sure to submit both your .Rmd file and the compiled .html or .pdf file for full credit -->
+
+
+```{r setup-3}
+
+# load all your libraries in this chunk 
+library('tidyverse')
+library(Hmisc)
+library('photobiology')
+library(janeaustenr)
+library(dplyr)
+library(stringr)
+library(tidytext)
+library(wordcloud)
+library(reshape2)
+library('randomForest')
+library(reshape2)
+
+```
+
+
+
+Load in wine data set
+```{r}
+
+wine_DF <- 
+  read.csv(here::here("dataset",
+           "wine.csv"))
+
+wine_DF
+
+```
+
+Clean up wine data set to get rid of rows with NA values and remove some columns 
+```{r}
+
+wine_clean <- wine_DF %>% na.omit()
+
+wine_clean
+
+```
+
+
+Summary of wine data set
+```{r}
+
+summary(wine_clean)
+
+```
+
+
+Box plot of the quality of all of the wines
+Lowest quality is 3, highest quality is 8. 
+Q1 is 5, the median and Q3 are at 6, the min is 4 and the max is 7 with outliers at 3 and 8.
+The cutoff for a good wine would be at 6.
+```{r}
+
+p <- ggplot(wine_clean, aes(x=quality)) + 
+  geom_boxplot()
+p
+
+```
+
+```{r}
+
+wine_clean <- wine_clean %>% 
+  mutate(quality = ifelse(quality > 5 , 1, 0))
+
+wine_clean
+
+```
+
+
+Correlation Matrix
+```{r}
+
+cor_wine <- round(cor(wine_clean),2)
+head(cor_wine)
+
+```
+
+
+Remove the upper triangle of data (The data is repeated so it isn't important)
+```{r}
+
+get_upper_tri <- function(cor_wine){
+    cor_wine[lower.tri(cor_wine)]<- NA
+    return(cor_wine)
+}
+
+reorder_cor_wine <- function(cor_wine){
+# Use correlation between variables as distance
+dd <- as.dist((1-cor_wine)/2)
+hc <- hclust(dd)
+cor_wine <-cor_wine[hc$order, hc$order]
+}
+
+```
+
+
+Reshape the correlation matrix
+```{r}
+
+#cor_wine <- reorder_cor_wine(cor_wine)
+
+upper_tri <- get_upper_tri(cor_wine)
+upper_tri
+
+melted_cor_wine <-  melt(upper_tri, na.rm = TRUE)
+head(melted_cor_wine)
+
+```
+
+
+Graph of the maximum points of wines from each country
+```{r}
+
+ggplot(melted_cor_wine, aes(Var2, Var1, fill = value))+
+ geom_tile(color = "white")+
+ scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+   midpoint = 0, limit = c(-1,1), space = "Lab", 
+   name="Wine\nCorrelation") +
+  theme_minimal()+ 
+ theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 12, hjust = 1))+
+ coord_fixed()
+
+```
+
+
+
+Random Forest Model
+
+
+
+```{r}
+
+rf_fit <- randomForest(quality ~.,
+                       data = wine_clean,
+                       type = classification,
+                       mtry = 3,
+                       na.action = na.roughfix,
+                       ntree = 100, 
+                       importance = TRUE)
+
+print(rf_fit)
+
+plot(rf_fit)
+
+```
+
+
+
+```{r}
+
+rf_mods <- list()
+oob_err <- NULL
+test_err <- NULL
+for(mtry in 1:9){
+  rf_fit <- randomForest(Survived ~ 
+                           Pclass + Sex + Age + SibSp + Fare, 
+                         data = titanic_df,
+                         mtry = mtry,
+                         na.action = na.roughfix,
+                         ntree = 600)
+  oob_err[mtry] <- rf_fit$err.rate[600]
+  
+  cat(mtry," ")
+}
+
+results_DF <- data.frame(mtry = 1:9, oob_err)
+ggplot(results_DF, aes(x = mtry, y = oob_err)) + geom_point() + theme_minimal()
+
+```
+
+
+
+```{r}
+
+
+
+```
+
+
+
+```{r}
+
+
+
+```
