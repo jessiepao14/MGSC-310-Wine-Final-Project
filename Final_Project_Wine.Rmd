@@ -58,7 +58,7 @@ getwd()
 ```{r setup-3}
 
 # load all your libraries in this chunk 
-library('tidyverse')
+library(tidyverse)
 library(Hmisc)
 library('photobiology')
 library(janeaustenr)
@@ -69,6 +69,10 @@ library(wordcloud)
 library(reshape2)
 library('randomForest')
 library(reshape2)
+library(partykit)
+library(PerformanceAnalytics)
+library(rpart)       
+library(rpart.plot)  
 
 ```
 
@@ -119,6 +123,9 @@ p
 
 wine_clean <- wine_clean %>% 
   mutate(quality = ifelse(quality > 5 , 1, 0))
+
+wine_clean <- wine_clean %>% 
+  mutate(quality = factor(quality))
 
 wine_clean
 
@@ -186,51 +193,66 @@ ggplot(melted_cor_wine, aes(Var2, Var1, fill = value))+
 Random Forest Model
 
 
-
+Run a random forest model.  From the graph we can see that this model is better at predicting if a bottle of wine is high quality. 
 ```{r}
 
-rf_fit <- randomForest(quality ~.,
+wine_rf <- randomForest(quality ~ .,
                        data = wine_clean,
                        type = classification,
-                       mtry = 3,
+                       mtry = 4,
                        na.action = na.roughfix,
                        ntree = 100, 
                        importance = TRUE)
 
-print(rf_fit)
+print(wine_rf)
 
-plot(rf_fit)
+plot(wine_rf)
+
 
 ```
 
 
-
+Tune the random forest model to determine what the optimal parameters (mtry) are.
+From the graph we can see that an mtry of 7 would give us the least amount of error
 ```{r}
 
 rf_mods <- list()
 oob_err <- NULL
 test_err <- NULL
-for(mtry in 1:9){
-  rf_fit <- randomForest(Survived ~ 
-                           Pclass + Sex + Age + SibSp + Fare, 
-                         data = titanic_df,
+for(mtry in 0:11){
+  rf_fit <- randomForest(quality ~ ., 
+                         data = wine_clean,
                          mtry = mtry,
                          na.action = na.roughfix,
-                         ntree = 600)
-  oob_err[mtry] <- rf_fit$err.rate[600]
+                         ntree = 20)
+  oob_err[mtry] <- rf_fit$err.rate[20]
   
   cat(mtry," ")
 }
 
-results_DF <- data.frame(mtry = 1:9, oob_err)
+oob_err
+
+results_DF <- data.frame(mtry = 1:11, oob_err)
 ggplot(results_DF, aes(x = mtry, y = oob_err)) + geom_point() + theme_minimal()
 
 ```
 
 
-
+Now if we rerun the random forest model with an mtry of 2 the error has decreased compared to the above model with a mtry of 4. 
 ```{r}
 
+
+wine_rf <- randomForest(quality ~ .,
+                       data = wine_clean,
+                       type = classification,
+                       mtry = 2,
+                       na.action = na.roughfix,
+                       ntree = 100, 
+                       importance = TRUE)
+
+print(wine_rf)
+
+plot(wine_rf)
 
 
 ```
