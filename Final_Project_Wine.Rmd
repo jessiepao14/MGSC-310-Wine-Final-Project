@@ -73,6 +73,7 @@ library(partykit)
 library(PerformanceAnalytics)
 library(rpart)       
 library(rpart.plot)  
+library('randomForestExplainer')
 
 ```
 
@@ -107,35 +108,10 @@ summary(wine_clean)
 ```
 
 
-Box plot of the quality of all of the wines
-Lowest quality is 3, highest quality is 8. 
-Q1 is 5, the median and Q3 are at 6, the min is 4 and the max is 7 with outliers at 3 and 8.
-The cutoff for a good wine would be at 6.
-```{r}
-
-p <- ggplot(wine_clean, aes(x=quality)) + 
-  geom_boxplot()
-p
-
-```
-
-```{r}
-
-wine_clean <- wine_clean %>% 
-  mutate(quality = ifelse(quality > 5 , 1, 0))
-
-wine_clean <- wine_clean %>% 
-  mutate(quality = factor(quality))
-
-wine_clean
-
-```
-
-
 Correlation Matrix
 ```{r}
 
-cor_wine <- round(cor(wine_clean),2)
+cor_wine <- round(cor(wine_clean), 2)
 head(cor_wine)
 
 ```
@@ -189,17 +165,59 @@ ggplot(melted_cor_wine, aes(Var2, Var1, fill = value))+
 ```
 
 
+Box plot of the quality of all of the wines
+Lowest quality is 3, highest quality is 8. 
+Q1 is 5, the median and Q3 are at 6, the min is 4 and the max is 7 with outliers at 3 and 8.
+The cutoff for a good wine would be at 6.
+```{r}
+
+p <- ggplot(wine_clean, aes(x=quality)) + 
+  geom_boxplot()
+p
+
+```
+
+```{r}
+
+wine_clean <- wine_clean %>% 
+  mutate(quality = ifelse(quality >= 6 , 1, 0))
+
+wine_clean <- wine_clean %>% 
+  mutate(quality = factor(quality))
+
+wine_clean
+
+```
+
 
 Random Forest Model
 
-
-Run a random forest model.  From the graph we can see that this model is better at predicting if a bottle of wine is high quality. 
 ```{r}
 
 wine_rf <- randomForest(quality ~ .,
                        data = wine_clean,
                        type = classification,
-                       mtry = 4,
+                       mtry = 7,
+                       na.action = na.roughfix,
+                       ntree = 100, 
+                       importance = TRUE)
+
+print(wine_rf)
+
+plot(wine_rf)
+
+
+```
+
+
+Run a random forest model.  From the graph we can see that this model is better at predicting if a bottle of wine is low quality. 
+```{r}
+
+wine_rf <- randomForest(quality ~ fixed.acidity + volatile.acidity + citric.acid + 
+                          chlorides + total.sulfur.dioxide + density + sulphates + alcohol,
+                       data = wine_clean,
+                       type = classification,
+                       mtry = 7,
                        na.action = na.roughfix,
                        ntree = 100, 
                        importance = TRUE)
@@ -213,18 +231,19 @@ plot(wine_rf)
 
 
 Tune the random forest model to determine what the optimal parameters (mtry) are.
-From the graph we can see that an mtry of 7 would give us the least amount of error
+From the graph we can see that an mtry of 2 would give us the least amount of error
 ```{r}
 
 rf_mods <- list()
 oob_err <- NULL
 test_err <- NULL
 for(mtry in 0:11){
-  rf_fit <- randomForest(quality ~ ., 
+  rf_fit <- randomForest(quality ~ fixed.acidity + volatile.acidity + citric.acid + 
+                          chlorides + total.sulfur.dioxide + density + sulphates + alcohol,
                          data = wine_clean,
                          mtry = mtry,
                          na.action = na.roughfix,
-                         ntree = 20)
+                         ntree = 100)
   oob_err[mtry] <- rf_fit$err.rate[20]
   
   cat(mtry," ")
@@ -238,11 +257,12 @@ ggplot(results_DF, aes(x = mtry, y = oob_err)) + geom_point() + theme_minimal()
 ```
 
 
-Now if we rerun the random forest model with an mtry of 2 the error has decreased compared to the above model with a mtry of 4. 
+Now if we rerun the random forest model with an mtry of 2 the error has decreased compared to the above model with a mtry of 7. 
 ```{r}
 
 
-wine_rf <- randomForest(quality ~ .,
+wine_rf <- randomForest(quality ~ fixed.acidity + volatile.acidity + citric.acid + 
+                          chlorides + total.sulfur.dioxide + density + sulphates + alcohol,
                        data = wine_clean,
                        type = classification,
                        mtry = 2,
@@ -261,6 +281,18 @@ plot(wine_rf)
 
 ```{r}
 
-
+plot_min_depth_distribution(wine_rf)
 
 ```
+
+
+From the importance function we can see that there would be about a 10% decrease in accuracy if alcohol is removed.  From this we can conclude that alcohol is an important feature to include.  
+```{r}
+
+importance(wine_rf, type = 1, scale = FALSE)
+
+varImpPlot(wine_rf, type = 1, scale = FALSE)
+
+```
+
+
